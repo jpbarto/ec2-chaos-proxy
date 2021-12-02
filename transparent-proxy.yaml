@@ -40,6 +40,13 @@ Parameters:
     Description: List of whitelisted domains separated by a comma. Enter ".example.com" to
       whitelist all the sub-domains of example.com.
 
+  PublicSubnet1:
+    Type: String
+    Description: Subnet ID where the instance should run
+  PublicSubnet2:
+    Type: String
+    Description: Subnet ID where the instance should run
+
 Metadata:
   'AWS::CloudFormation::Interface':
 
@@ -63,139 +70,6 @@ Metadata:
         default: Allowed Domains
 
 Resources:
-
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/24
-      Tags:
-      - Key: Name
-        Value: !Sub 'VPC - ${AWS::StackName}'
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-      - Key: Name
-        Value: !Sub 'IGW - ${AWS::StackName}'
-
-  AttachGateway:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.0.0/26
-      MapPublicIpOnLaunch: False
-      AvailabilityZone: !Select 
-      - 0
-      - !GetAZs 
-        Ref: 'AWS::Region'
-      Tags:
-      - Key: Name
-        Value: !Sub 'Private Subnet 1 - ${AWS::StackName}'
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.0.64/26
-      MapPublicIpOnLaunch: False
-      AvailabilityZone: !Select 
-      - 1
-      - !GetAZs 
-        Ref: 'AWS::Region'
-      Tags:
-      - Key: Name
-        Value: !Sub 'Private Subnet 2 - ${AWS::StackName}'
-
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.0.128/26
-      MapPublicIpOnLaunch: True
-      AvailabilityZone: !Select 
-      - 0
-      - !GetAZs 
-        Ref: 'AWS::Region'
-      Tags:
-      - Key: Name
-        Value: !Sub 'Public Subnet 1 - ${AWS::StackName}'
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.0.192/26
-      MapPublicIpOnLaunch: True
-      AvailabilityZone: !Select 
-      - 1
-      - !GetAZs 
-        Ref: 'AWS::Region'
-      Tags:
-      - Key: Name
-        Value: !Sub 'Public Subnet 2 - ${AWS::StackName}'
-
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: !Sub 'Public Route Table - ${AWS::StackName}'
-
-  PublicRouteTableEntry:
-    Type: AWS::EC2::Route
-    DependsOn: AttachGateway
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  PublicRouteTableSubnetAssociation1:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref PublicRouteTable
-
-  PublicRouteTableSubnetAssociation2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref PublicRouteTable
-
-  PrivateRouteTable1:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: !Sub 'Private Route Table 1 - ${AWS::StackName}'
-
-  PrivateRouteTableSubnetAssociation1:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable1
-
-  PrivateRouteTable2:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: !Sub 'Private Route Table 2 - ${AWS::StackName}'
-
-  PrivateRouteTableSubnetAssociation2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable2
 
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -753,49 +627,3 @@ Resources:
                 )['Tags'][0]['Value'].split(','):
                   update_route(route_table_id, asg_instance_id, asg_name)
 
-  TestingInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-      Policies:
-      - PolicyName: root
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - ec2:DescribeRegions
-            Resource: '*'
-
-  TestingInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-      - !Ref TestingInstanceRole
-      Path: /
-
-  TestingInstance:
-    Type: AWS::EC2::Instance
-    DependsOn:
-    - NATInstanceASG1
-    Properties:
-      IamInstanceProfile: !Ref TestingInstanceProfile
-      ImageId: !Ref AmiId
-      InstanceType: t3.nano
-      SecurityGroupIds:
-      - !GetAtt VPC.DefaultSecurityGroup
-      SubnetId: !Ref PrivateSubnet1
-      Tags:
-      - Key: Name
-        Value: !Sub 'Testing Instance - ${AWS::StackName}'
