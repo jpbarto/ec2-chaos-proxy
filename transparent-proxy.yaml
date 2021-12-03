@@ -11,6 +11,14 @@ Parameters:
     Description: AMI ID pointer in AWS Systems Manager Parameter Store. Default value points to the
       latest Amazon Linux 2 AMI ID.
 
+  InstanceCount:
+    Type: Number
+    Default: 3
+    Description: Number of gateway instances to deploy
+    MinValue: 1
+    MaxValue: 3
+
+
   InstanceType:
     Type: String
     Default: t3.small
@@ -40,13 +48,9 @@ Parameters:
     Description: List of whitelisted domains separated by a comma. Enter ".example.com" to
       whitelist all the sub-domains of example.com.
 
-  PublicSubnet1:
-    Type: "AWS::EC2::Subnet::Id"
-    Description: Subnet ID where the instance should run
-
-  PublicSubnet2:
-    Type: "AWS::EC2::Subnet::Id"
-    Description: Subnet ID where the instance should run
+  PublicSubnets:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs for the gateways
 
   VPC:
     Type: "AWS::EC2::VPC::Id"
@@ -61,6 +65,7 @@ Metadata:
       Parameters:
       - AmiId
       - InstanceType
+      - InstanceCount
     - Label:
         default: Proxy Configuration
       Parameters:
@@ -354,56 +359,31 @@ Resources:
 
             # CloudFormation signal
             yum update -y aws-cfn-bootstrap
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource NATInstanceASG1 --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource NATInstanceASG --region ${AWS::Region}
 
-  NATInstanceASG1:
+  NATInstanceASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      DesiredCapacity: 1
+      DesiredCapacity: !Ref InstanceCount
       HealthCheckGracePeriod: 300
       HealthCheckType: EC2
       LaunchConfigurationName: !Ref NATInstanceLC
-      MaxSize: 1
+      MaxSize: 3
       MinSize: 1
       Tags:
       - Key: Name
-        Value: !Sub 'NAT Instance 1 - ${AWS::StackName}'
+        Value: !Sub '${AWS::StackName}-Gateway'
         PropagateAtLaunch: True
-      VPCZoneIdentifier:
-      - !Ref PublicSubnet1
+      VPCZoneIdentifier: !Ref PublicSubnets
     CreationPolicy:
       ResourceSignal:
         Count: 1
         Timeout: PT10M
 
-  NATInstanceASGHook1: 
+  NATInstanceASGHook: 
     Type: AWS::AutoScaling::LifecycleHook
     Properties: 
-      AutoScalingGroupName: !Ref NATInstanceASG1
-      DefaultResult: ABANDON
-      LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
-      HeartbeatTimeout: 300
-
-  NATInstanceASG2:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      DesiredCapacity: 1
-      HealthCheckGracePeriod: 300
-      HealthCheckType: EC2
-      LaunchConfigurationName: !Ref NATInstanceLC
-      MaxSize: 1
-      MinSize: 1
-      Tags:
-      - Key: Name
-        Value: !Sub 'NAT Instance 2 - ${AWS::StackName}'
-        PropagateAtLaunch: True
-      VPCZoneIdentifier:
-      - !Ref PublicSubnet2
-
-  NATInstanceASGHook2: 
-    Type: AWS::AutoScaling::LifecycleHook
-    Properties: 
-      AutoScalingGroupName: !Ref NATInstanceASG2
+      AutoScalingGroupName: !Ref NATInstanceASG
       DefaultResult: ABANDON
       LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
       HeartbeatTimeout: 300
