@@ -275,6 +275,10 @@ Resources:
             instanceid=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
             aws ec2 modify-instance-attribute --no-source-dest-check --instance-id $instanceid --region $region
 
+            # Install tc and tcconfig for traffic control 
+            yum install -y tc 
+            pip3 install tcconfig
+
             # Install and start Squid
             yum install -y squid
             systemctl start squid || service squid start
