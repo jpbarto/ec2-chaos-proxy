@@ -44,7 +44,7 @@ Parameters:
 
   WhitelistDomains:
     Type: CommaDelimitedList
-    Default: .amazonaws.com
+    Default: .com,.net,.org,.edu
     Description: List of whitelisted domains separated by a comma. Enter ".example.com" to
       whitelist all the sub-domains of example.com.
 
@@ -56,10 +56,20 @@ Parameters:
     Type: "AWS::EC2::VPC::Id"
     Description: The VPC ID for resource creation
 
+  VPCCidr:
+    Type: String
+    Description: CIDR range of the specified VPC.  Example 10.0.0.0/16
+
 Metadata:
   'AWS::CloudFormation::Interface':
 
     ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - PublicSubnets
+      - VPC
+      - VPCCidr
     - Label:
         default: Instance Configuration
       Parameters:
@@ -72,10 +82,18 @@ Metadata:
       - WhitelistDomains
 
     ParameterLabels:
+      PublicSubnets:
+        default: Gateway Subnets 
+      VPC: 
+        default: Gateway VPC 
+      VPCCidr: 
+        default: VPC CIDR Range
       AmiId:
         default: AMI ID
       InstanceType:
         default: NAT Instance Type
+      InstanceCount:
+        default: Number of gateways to deploy (ideally 1 per subnet)
       WhitelistDomains:
         default: Allowed Domains
 
@@ -141,12 +159,26 @@ Resources:
               cfnresponse.send(event, context, cfnresponse.FAILED, {})
               raise(e)
 
+  TcconfigS3Object:
+    Type: Custom::S3Object
+    Properties:
+      ServiceToken: !GetAtt S3PutLambdaFunction.Arn
+      Bucket: !Ref S3Bucket
+      Key: tc/tcconfig.json
+      Content: |
+        {
+            "eth0": {
+                "outgoing": {},
+                "incoming": {}
+            }
+        }
+
   WhitelistS3Object:
     Type: Custom::S3Object
     Properties:
       ServiceToken: !GetAtt S3PutLambdaFunction.Arn
       Bucket: !Ref S3Bucket
-      Key: whitelist.txt
+      Key: squid/whitelist.txt
       Content: !Join [ "\n", !Ref WhitelistDomains ]
 
   SquidConfS3Object:
@@ -154,7 +186,7 @@ Resources:
     Properties:
       ServiceToken: !GetAtt S3PutLambdaFunction.Arn
       Bucket: !Ref S3Bucket
-      Key: squid.conf
+      Key: squid/squid.conf
       Content: |
         visible_hostname squid
         cache deny all
@@ -236,11 +268,11 @@ Resources:
     Properties:
       GroupDescription: Allows HTTP and HTTPS from private instances to NAT instances
       SecurityGroupIngress:
-      - CidrIp: '10.0.0.0/25'
+      - CidrIp: !Ref VPCCidr
         FromPort: 80
         ToPort: 80
         IpProtocol: TCP
-      - CidrIp: '10.0.0.0/25'
+      - CidrIp: !Ref VPCCidr
         FromPort: 443
         ToPort: 443
         IpProtocol: TCP
@@ -293,11 +325,18 @@ Resources:
             openssl x509 -req -days 3650 -in squid.csr -signkey squid.key -out squid.crt
             cat squid.key squid.crt >> squid.pem
 
+            # Refresh the traffic control configuration 
+            mkdir -p /etc/tc/old
+            cat > /etc/tc/tc-conf-refresh.sh << 'EOF'
+            aws s3 sync s3://${S3Bucket}/tc /etc/tc 
+            tcset --overwrite --import-setting /etc/tc/tcconfig.json
+            EOF
+
             # Refresh the Squid configuration files from S3
             mkdir /etc/squid/old
             cat > /etc/squid/squid-conf-refresh.sh << 'EOF'
             cp /etc/squid/* /etc/squid/old/
-            aws s3 sync s3://${S3Bucket} /etc/squid
+            aws s3 sync s3://${S3Bucket}/squid /etc/squid
             /usr/sbin/squid -k parse && /usr/sbin/squid -k reconfigure || (cp /etc/squid/old/* /etc/squid/; exit 1)
             EOF
             chmod +x /etc/squid/squid-conf-refresh.sh
@@ -305,6 +344,7 @@ Resources:
 
             # Schedule tasks
             cat > ~/mycron << 'EOF'
+            * * * * * /etc/tc/tc-conf-refresh.sh
             * * * * * /etc/squid/squid-conf-refresh.sh
             0 0 * * * sleep $(($RANDOM % 3600)); yum -y update --security
             0 0 * * * /usr/sbin/squid -k rotate
