@@ -16,7 +16,7 @@ VPC_CIDR=$(aws ec2 describe-vpcs --vpc-ids $VPC_ID --query 'Vpcs[].CidrBlock' --
 
 # detect the chaos gateway local to the subnet's AZ
 GW_ID=$(aws ec2 describe-instances \
-        --query 'Reservations[].Instances[?(VpcId==`'$VPC_ID'`) && (Tags[?Key==`Name`]) && (Placement.AvailabilityZone==`'$AZ'`)].InstanceId' \
+        --query 'Reservations[].Instances[?(VpcId==`'$VPC_ID'`) && (Tags[?Key==`ChaosGW`]) && (Placement.AvailabilityZone==`'$AZ'`)].InstanceId' \
         --output text --region $REGION)
 
 # create a new route table
