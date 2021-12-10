@@ -6,6 +6,8 @@ set -e
 ## Configure a subnet to route traffic to the local chaos gateway.
 ###
 
+source chaos-gateway-subnets.sh
+
 SUBNET=$1
 echo Preparing to replace the route table for $SUBNET...
 
@@ -21,10 +23,25 @@ GW_ID=$(aws ec2 describe-instances \
 
 # create a new route table
 GW_ROUTE_TABLE_ID=$(aws ec2 create-route-table --vpc-id $VPC_ID --query 'RouteTable.RouteTableId' --output text --region $REGION)
+echo Created new route table: ${GW_ROUTE_TABLE_ID}.
+
 # modify it to send all traffic to the chaos gateway
 aws ec2 create-route --route-table-id $GW_ROUTE_TABLE_ID --instance-id $GW_ID --destination-cidr-block '0.0.0.0/0'
-# update the default route for the local CIDR to point to chaos gateway
-aws ec2 replace-route --route-table-id $GW_ROUTE_TABLE_ID --destination-cidr-block $VPC_CIDR --instance-id $GW_ID
+
+# update the default route for the local CIDRs to point to chaos gateway
+JMES_SET='`'${CHAOS_GW_SUBNETS[0]}'`'
+for subnet in "${CHAOS_GW_SUBNETS[@]}";
+do
+        JMES_SET+=',`'${subnet}'`';
+done
+REDIRECT_CIDRS=($(aws ec2 describe-subnets \
+        --region eu-central-1 \
+        --query 'Subnets[? (VpcId==`'${VPC_ID}'`) && (!contains(['${JMES_SET}'] | @, SubnetId))].CidrBlock' \
+        --output text))
+for redirect_cidr in "${REDIRECT_CIDRS[@]}";
+do
+        aws ec2 create-route --route-table-id $GW_ROUTE_TABLE_ID --instance-id $GW_ID --destination-cidr-block ${redirect_cidr}
+done
 
 # replace target subnet route table with new route table
 # get association id for subnet
@@ -36,6 +53,7 @@ ASSOC_ID=$(aws ec2 describe-route-tables \
             --output text --region $REGION)
 
 echo Swapping the old route table $ORIG_ROUTE_TABLE_ID for the new route table $GW_ROUTE_TABLE_ID...
+echo To restore execute "./restore-subnet.sh ${SUBNET} ${ORIG_ROUTE_TABLE_ID}"
 # disassociate existing route table
 aws ec2 disassociate-route-table --association-id $ASSOC_ID --region $REGION
 # associate new route table
