@@ -332,6 +332,7 @@ Resources:
             # Refresh the traffic control configuration 
             mkdir -p /etc/tc/old
             cat > /etc/tc/tc-conf-refresh.sh << 'EOF'
+            export PATH=$PATH:/usr/local/bin
             aws s3 sync s3://${S3Bucket}/tc /etc/tc 
             tcset --overwrite --import-setting /etc/tc/tcconfig.json
             EOF
