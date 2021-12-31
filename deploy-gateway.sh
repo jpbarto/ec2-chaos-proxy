@@ -2,6 +2,22 @@
 
 set -e
 
+function print_help {
+    echo "Usage: $0 <SUBNET-ID-1> <SUBNET-ID-2> <SUBNET-ID-3>"
+    echo
+    echo "NOTE: Ensure that the AWS_DEFAULT_REGION environment variable"
+    echo "      is set to an AWS region which hosts the specified subnet IDs."
+    echo
+    echo "SUBNET-ID-X   The ID of the Subnet into which the chaos proxy instance"
+    echo "              should be deployed.  All subnets should be part of the"
+    echo "              same VPC."
+}
+
+if [ $# -eq 0 ] || [ $1 == "-h" ] || [ $1 == "--help" ]; then
+    print_help
+    exit 1
+fi
+
 ARGV=("$@")
 
 REGION=${AWS_DEFAULT_REGION}
