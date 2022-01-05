@@ -333,7 +333,7 @@ Resources:
             mkdir -p /etc/tc/old
             cat > /etc/tc/tc-conf-refresh.sh << 'EOF'
             export PATH=$PATH:/usr/local/bin
-            aws s3 sync s3://${S3Bucket}/tc /etc/tc 
+            aws s3 cp s3://${S3Bucket}/tc/tcconfig.json /etc/tc/tcconfig.json
             tcset --overwrite --import-setting /etc/tc/tcconfig.json
             EOF
             chmod +x /etc/tc/tc-conf-refresh.sh
@@ -441,3 +441,7 @@ Resources:
       DefaultResult: ABANDON
       LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
       HeartbeatTimeout: 300
+
+Outputs:
+  ConfigurationBucket:
+    Value: !Ref S3Bucket
