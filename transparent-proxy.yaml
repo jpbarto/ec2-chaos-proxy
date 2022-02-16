@@ -315,6 +315,7 @@ Resources:
             sysctl -w net.ipv4.ip_forward=1
             sysctl -p
             sysctl --system
+            iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
             # Install tc and tcconfig for traffic control 
             yum install -y tc 
