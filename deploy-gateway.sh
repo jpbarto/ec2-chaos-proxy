@@ -47,4 +47,6 @@ aws cloudformation create-stack \
 echo Waiting for stack to complete deploying...
 aws cloudformation wait stack-create-complete --stack-name chaos-gateway --region ${REGION}
 
+echo Chaos Gateway Configuration S3 bucket: s3://$(aws cloudformation describe-stacks --stack-name chaos-gateway --query 'Stacks[].Outputs[?OutputKey==`ConfigurationBucket`].OutputValue' --output text)
+
 echo CHAOS_GW_SUBNETS='(' "${ARGV[*]}" ')' > chaos-gateway-subnets.sh
