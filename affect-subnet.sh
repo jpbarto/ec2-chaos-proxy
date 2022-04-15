@@ -35,7 +35,7 @@ do
         JMES_SET+=',`'${subnet}'`';
 done
 REDIRECT_CIDRS=($(aws ec2 describe-subnets \
-        --region eu-central-1 \
+        --region $REGION \
         --query 'Subnets[? (VpcId==`'${VPC_ID}'`) && (!contains(['${JMES_SET}'] | @, SubnetId))].CidrBlock' \
         --output text))
 for redirect_cidr in "${REDIRECT_CIDRS[@]}";
