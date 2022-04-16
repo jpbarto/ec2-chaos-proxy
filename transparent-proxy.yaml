@@ -42,11 +42,17 @@ Parameters:
     - c5.xlarge
     - c5.large
 
-  WhitelistDomains:
+  AllowlistDomains:
     Type: CommaDelimitedList
     Default: .com,.net,.org,.edu
-    Description: List of whitelisted domains separated by a comma. Enter ".example.com" to
-      whitelist all the sub-domains of example.com.
+    Description: List of allowed domains separated by a comma. Enter ".example.com" to
+      allow all the sub-domains of example.com.
+
+  BlocklistDomains:
+    Type: CommaDelimitedList
+    Default: .io,.cc
+    Description: List of blocked domains separated by a comma. Enter ".example.com" to
+      block all the sub-domains of example.com.
 
   PublicSubnets:
     Type: "List<AWS::EC2::Subnet::Id>"
@@ -79,7 +85,7 @@ Metadata:
     - Label:
         default: Proxy Configuration
       Parameters:
-      - WhitelistDomains
+      - AllowlistDomains
 
     ParameterLabels:
       PublicSubnets:
@@ -94,7 +100,7 @@ Metadata:
         default: NAT Instance Type
       InstanceCount:
         default: Number of gateways to deploy (ideally 1 per subnet)
-      WhitelistDomains:
+      AllowlistDomains:
         default: Allowed Domains
 
 Resources:
@@ -173,13 +179,21 @@ Resources:
             }
         }
 
-  WhitelistS3Object:
+  AllowlistS3Object:
     Type: Custom::S3Object
     Properties:
       ServiceToken: !GetAtt S3PutLambdaFunction.Arn
       Bucket: !Ref S3Bucket
-      Key: squid/whitelist.txt
-      Content: !Join [ "\n", !Ref WhitelistDomains ]
+      Key: squid/allowlist.txt
+      Content: !Join [ "\n", !Ref AllowlistDomains ]
+
+  BlocklistS3Object:
+    Type: Custom::S3Object
+    Properties:
+      ServiceToken: !GetAtt S3PutLambdaFunction.Arn
+      Bucket: !Ref S3Bucket
+      Key: squid/blocklist.txt
+      Content: !Join [ "\n", !Ref BlocklistDomains ]
 
   SquidConfS3Object:
     Type: Custom::S3Object
@@ -217,12 +231,16 @@ Resources:
           acl local_network localip ${VPCCidr}
           http_access allow local_network
 
-          # Filter HTTP requests based on the whitelist
-          acl allowed_http_sites dstdomain "/etc/squid/whitelist.txt"
+          # Filter HTTP requests based on the blocklist
+          acl blocked_http_sites dstdomain "/etc/squid/blocklist.txt"
+          http_access deny blocked_http_sites
+
+          # Filter HTTP requests based on the allowlist
+          acl allowed_http_sites dstdomain "/etc/squid/allowlist.txt"
           http_access allow allowed_http_sites
 
           # Filter HTTPS requests based on the whitelist
-          acl allowed_https_sites ssl::server_name "/etc/squid/whitelist.txt"
+          acl allowed_https_sites ssl::server_name "/etc/squid/allowlist.txt"
           ssl_bump peek step2 allowed_https_sites
           ssl_bump splice step3 allowed_https_sites
           ssl_bump terminate step2 all
