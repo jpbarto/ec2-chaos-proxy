@@ -1,4 +1,30 @@
-Based on the blog post and CFN from https://aws.amazon.com/blogs/security/how-to-add-dns-filtering-to-your-nat-instance-with-squid/
+# EC2 Chaos Gateway
+
+> Based on the blog post and CFN from https://aws.amazon.com/blogs/security/how-to-add-dns-filtering-to-your-nat-instance-with-squid/
+
+## Overview
+This Cloudformation template and set of scripts deploy a set of transparent network proxies designed to allow someone to intercept and mutate network traffic in a VPC.  This is meant to support Chaos Engineering experiments within a VPC environment where the experiment needs to delay, drop, or rate limit traffic between two IP-based endpoints.  Because the proxy operates in a transparent fashion it is suitable for intercepting traffic to or from:
+- EC2 instances
+- VPC-bound lambda functions
+- RDS databases
+- Elasticache clusters
+- Interface VPC endpoints
+- other resources addressed through ENIs
+
+The Squid proxy also supports denying access to URLs external to the VPC.  
+
+Through the combination of Traffic Control and Squid Proxy you can:
+- limit network bandwidth to / from a network resource
+- drop a percentage of IP packets to / from a network resource
+- drop ALL IP packets to / from a network resource
+- delay IP packets to / from a network resource
+- deny access to hostnames
+
+For example the database traffic leaving an application in one subnet can be intercepted by the Chaos Gateway as it travels to an RDS database to simulate a network disruption between the client and the database.  The Chaos Gateway can drop 30% of the TCP packets carrying the database session to determine if the application code compensates for the traffic disruption or if alarms detect the disruption.
+
+Much of the testing was performed using Redis where the client / server communication had 1+ seconds of delay added to the stream via the Chaos Gateway.
+
+The Gateway relies on the route tables associated with VPC subnets so that the client and server applications do not need to be modified.  The route table will redirect traffic through the Chaos Gateway.  If the client and server are in the same subnet the traffic can still be routed through the Chaos Gateway but the local routing table of the client will need to be modified and the Gateway will need to be in the same subnet as the client and server.
 
 # Use Cases
 
@@ -67,3 +93,19 @@ To remove the reroute of traffic, to un-fail the subnet, use the restoration com
 ```
 ./restore-subnet.sh subnet-123abc rtb-123def
 ```
+
+# Scenarios
+
+## Cross-subnet scenario
+To test communication between networked resources in different subnets, use the above shell scripts to modify the route tables for the subnets to force traffic through the chaos gateways.
+
+## Intra-subnet scenario
+To test communication between two networked resources in the same subnet you will need a chaos gateway deployed in the same subnet as the networked resources.  Then modify the routes on the target networked resource.  For example if a database at 10.0.2.23 is in a subnet with a database client at 10.0.2.31 with a chaos gateway deployed at 10.0.2.45 then create a route on the database client with a command like:
+
+```
+ip route add 10.0.2.23/32 via 10.0.2.45
+```
+
+The traffic from the client to the database will then be sent through the chaos gateway.  
+
+## HTTP-based scenario
