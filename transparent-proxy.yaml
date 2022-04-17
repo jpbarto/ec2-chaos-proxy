@@ -291,13 +291,7 @@ Resources:
       GroupDescription: Allows HTTP and HTTPS from private instances to NAT instances
       SecurityGroupIngress:
       - CidrIp: !Ref VPCCidr
-        FromPort: 80
-        ToPort: 80
-        IpProtocol: TCP
-      - CidrIp: !Ref VPCCidr
-        FromPort: 443
-        ToPort: 443
-        IpProtocol: TCP
+        IpProtocol: -1
       Tags:
       - Key: Name
         Value: !Sub 'NAT Instance SG - ${AWS::StackName}'
@@ -306,7 +300,8 @@ Resources:
   NATInstanceLC:
     Type: AWS::AutoScaling::LaunchConfiguration
     DependsOn:
-    - WhitelistS3Object
+    - AllowlistS3Object
+    - BlocklistS3Object
     - SquidConfS3Object
     Properties:
       IamInstanceProfile: !Ref NATInstanceProfile
@@ -469,3 +464,5 @@ Resources:
 Outputs:
   ConfigurationBucket:
     Value: !Ref S3Bucket
+  GatewaySecurityGroup:
+    Value: !Ref NATInstanceSG
