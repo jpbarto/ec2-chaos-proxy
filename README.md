@@ -86,12 +86,12 @@ aws s3 sync . s3://chaos-gateway-s3bucket-nrcxpwabgf7o
 
 To route traffic from a subnet through the gateway use the following command:
 ```
-./fail-subnet.sh subnet-123abc
+./affect-subnet.sh subnet-123abc
 ```
 
 To remove the reroute of traffic, to un-fail the subnet, use the restoration command provided by the previous command:
 ```
-./restore-subnet.sh subnet-123abc rtb-123def
+./unaffect-subnet.sh subnet-123abc
 ```
 
 # Scenarios
