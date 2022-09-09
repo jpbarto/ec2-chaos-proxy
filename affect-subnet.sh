@@ -52,11 +52,16 @@ ASSOC_ID=$(aws ec2 describe-route-tables \
             --query 'RouteTables[*].Associations[?SubnetId==`'$SUBNET'`].RouteTableAssociationId' \
             --output text --region $REGION)
 
-echo Tagging the subnet with its original Route Table ID 
-aws ec2 create-tags --resource ${SUBNET} --tags Key=rollback-route-table,Value=${ORIG_ROUTE_TABLE_ID}
-echo Swapping the old route table $ORIG_ROUTE_TABLE_ID for the new route table $GW_ROUTE_TABLE_ID...
+if [ ! -z $ASSOC_ID ]; then
+    echo Tagging the subnet with its original Route Table ID 
+    aws ec2 create-tags --resource ${SUBNET} --tags Key=rollback-route-table,Value=${ORIG_ROUTE_TABLE_ID}
+    echo Swapping the old route table $ORIG_ROUTE_TABLE_ID for the new route table $GW_ROUTE_TABLE_ID...
+    # disassociate existing route table
+    aws ec2 disassociate-route-table --association-id $ASSOC_ID --region $REGION
+else
+    echo Subnet uses the VPC default routing table
+fi
+
 echo To restore execute "./unaffect-subnet.sh ${SUBNET}"
-# disassociate existing route table
-aws ec2 disassociate-route-table --association-id $ASSOC_ID --region $REGION
 # associate new route table
 aws ec2 associate-route-table --subnet-id $SUBNET --route-table-id $GW_ROUTE_TABLE_ID --region $REGION
