@@ -1,5 +1,7 @@
 # EC2 Chaos Gateway
 
+# DISCLAIMER: THIS CODE IS FOR EXPERIMENTATION AND DEMONSTRATION PURPOSES ONLY!  IT HAS NOT BEEN EXTENSIVELY TESTED AND SHOULD NOT BE USED IN A PRODUCTION ENVIRONMENT.
+
 > Based on the blog post and CFN from https://aws.amazon.com/blogs/security/how-to-add-dns-filtering-to-your-nat-instance-with-squid/
 
 ## Overview
